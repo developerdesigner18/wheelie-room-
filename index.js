@@ -1,51 +1,53 @@
-const express = require("express");
+const { Client, GatewayIntentBits } = require("discord.js");
 const axios = require("axios");
 
-const app = express();
-app.use(express.json());
+// Create Discord client with required intents
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 
-// Health check route (important for Render)
-app.get("/", (req, res) => {
-  res.send("Discord Bot Bridge Running ✅");
+// When bot is ready
+client.once("ready", () => {
+  console.log(`Bot logged in as ${client.user.tag}`);
 });
 
-app.post("/discord-webhook", async (req, res) => {
+// Listen to messages
+client.on("messageCreate", async (message) => {
   try {
-    const message = req.body;
-
     // Ignore bot messages
-    if (message.author?.bot) {
-      return res.sendStatus(200);
-    }
+    if (message.author.bot) return;
 
-    const content = message.content;
+    const content = message.content.trim();
 
-    // Only accept numbers
-    if (!/^\d+$/.test(content)) {
-      return res.sendStatus(200);
-    }
+    // Only allow numbers
+    if (!/^\d+$/.test(content)) return;
 
-    console.log("Received quantity:", content);
+    console.log("Valid quantity received:", content);
 
+    // Send to n8n
     await axios.post(N8N_WEBHOOK_URL, {
       quantity: content,
-      raw: message
+      raw: {
+        id: message.id,
+        channelId: message.channelId,
+        guildId: message.guildId,
+        authorId: message.author.id
+      }
     });
 
-    return res.sendStatus(200);
+    console.log("Sent to n8n successfully");
 
   } catch (error) {
-    console.error("Error:", error.message);
-    return res.sendStatus(500);
+    console.error("Error processing message:", error.message);
   }
 });
 
-// 🔥 IMPORTANT: Use Render's dynamic port
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Login bot
+client.login(DISCORD_BOT_TOKEN);
