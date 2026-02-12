@@ -1,39 +1,51 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const express = require("express");
 const axios = require("axios");
+
+const app = express();
+app.use(express.json());
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+// Health check route (important for Render)
+app.get("/", (req, res) => {
+  res.send("Discord Bot Bridge Running ✅");
 });
 
-client.once("ready", () => {
-  console.log(`Bot logged in as ${client.user.tag}`);
-});
-
-client.on("messageCreate", async (message) => {
+app.post("/discord-webhook", async (req, res) => {
   try {
-    if (message.author.bot) return;
+    const message = req.body;
 
-    const content = message.content.trim();
+    // Ignore bot messages
+    if (message.author?.bot) {
+      return res.sendStatus(200);
+    }
 
-    if (!/^\d+$/.test(content)) return;
+    const content = message.content;
+
+    // Only accept numbers
+    if (!/^\d+$/.test(content)) {
+      return res.sendStatus(200);
+    }
+
+    console.log("Received quantity:", content);
 
     await axios.post(N8N_WEBHOOK_URL, {
       quantity: content,
       raw: message
     });
 
-    console.log("Quantity sent to n8n:", content);
+    return res.sendStatus(200);
 
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.message);
+    return res.sendStatus(500);
   }
 });
 
-client.login(DISCORD_BOT_TOKEN);
+// 🔥 IMPORTANT: Use Render's dynamic port
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
