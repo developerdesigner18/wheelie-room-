@@ -1,40 +1,39 @@
-const express = require("express");
+const { Client, GatewayIntentBits } = require("discord.js");
 const axios = require("axios");
-
-const app = express();
-app.use(express.json());
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 
-app.post("/discord-webhook", async (req, res) => {
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
+
+client.once("ready", () => {
+  console.log(`Bot logged in as ${client.user.tag}`);
+});
+
+client.on("messageCreate", async (message) => {
   try {
-    const message = req.body;
+    if (message.author.bot) return;
 
-    // Ignore bot messages
-    if (message.author?.bot) {
-      return res.sendStatus(200);
-    }
+    const content = message.content.trim();
 
-    const content = message.content;
-
-    // Only accept numbers
-    if (!/^\d+$/.test(content)) {
-      return res.sendStatus(200);
-    }
+    if (!/^\d+$/.test(content)) return;
 
     await axios.post(N8N_WEBHOOK_URL, {
       quantity: content,
       raw: message
     });
 
-    return res.sendStatus(200);
+    console.log("Quantity sent to n8n:", content);
+
   } catch (error) {
-    console.error(error);
-    return res.sendStatus(500);
+    console.error("Error:", error);
   }
 });
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
-});
+client.login(DISCORD_BOT_TOKEN);
