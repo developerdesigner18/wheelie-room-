@@ -24,7 +24,8 @@ const client = new Client({
   ]
 });
 
-client.once("clientReady", () => {
+// --- FIX: Change 'clientReady' to 'ready' ---
+client.once("ready", () => {
   console.log(`Bot logged in as ${client.user.tag}`);
 });
 
@@ -34,12 +35,16 @@ client.on("messageCreate", async (message) => {
 
     const content = message.content.trim();
 
+    // Only proceed if the message is purely a number
     if (!/^\d+$/.test(content)) return;
 
+    // Send data to n8n
     await axios.post(N8N_WEBHOOK_URL, {
-      quantity: content,
-      raw: message
+      quantity: content, // n8n reads this
+      raw: message       // Included just in case
     });
+    
+    console.log(`Sent quantity ${content} to n8n`);
 
   } catch (error) {
     console.error("Error sending to n8n:", error.message);
